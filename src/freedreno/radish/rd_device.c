@@ -41,11 +41,13 @@ rd_sync_wait_many(struct vk_device *device, uint32_t count,
          rd_wake_device_waiters(device);
          return VK_ERROR_DEVICE_LOST;
       }
-      if (result != VK_SUCCESS && result != VK_TIMEOUT) {
+      if (result == VK_ERROR_DEVICE_LOST) {
          vk_device_set_lost(device, "Radish sync wait failed");
          rd_wake_device_waiters(device);
          return VK_ERROR_DEVICE_LOST;
       }
+      if (result != VK_SUCCESS && result != VK_TIMEOUT)
+         return result;
       if (result != VK_TIMEOUT || (!poll_pending && slice == deadline))
          return result;
       if (poll_pending) {
@@ -146,6 +148,8 @@ rd_CreateDevice(VkPhysicalDevice handle, const VkDeviceCreateInfo *info,
    if (result == VK_SUCCESS)
       result = vk_queue_enable_submit_thread(&device->queue);
    if (result != VK_SUCCESS) {
+      rd_trace_finish(device);
+      simple_mtx_destroy(&device->meta_mutex);
       if (device->border_colors) fd_bo_del(device->border_colors);
       fd_bo_del(device->control);
       ir3_compiler_destroy(device->compiler);
